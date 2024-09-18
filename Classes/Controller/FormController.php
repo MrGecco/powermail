@@ -37,6 +37,8 @@ use Psr\Http\Message\ResponseInterface;
 use Throwable;
 use TYPO3\CMS\Core\Configuration\Exception\ExtensionConfigurationExtensionNotConfiguredException;
 use TYPO3\CMS\Core\Configuration\Exception\ExtensionConfigurationPathDoesNotExistException;
+use TYPO3\CMS\Core\Http\PropagateResponseException;
+use TYPO3\CMS\Core\Http\RedirectResponse;
 use TYPO3\CMS\Core\Utility\ArrayUtility;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Extbase\Annotation as ExtbaseAnnotation;
@@ -220,6 +222,7 @@ class FormController extends AbstractController
      * @throws ExtensionConfigurationPathDoesNotExistException
      * @throws InvalidQueryException
      * @throws NoSuchArgumentException
+     * @throws PropagateResponseException
      */
     public function initializeCreateAction(): void
     {
@@ -232,6 +235,11 @@ class FormController extends AbstractController
         $response = $this->forwardIfFormParamsDoNotMatch();
         if ($response !== null) {
             throw new PropagateResponseException($response);
+        }
+
+        $response = $this->forwardIfMailUidDoesNotExist();
+        if ($response !== null) {
+            throw new PropagateResponseException($response, 1726683851);
         }
 
         $this->reformatParamsForAction();
@@ -590,6 +598,21 @@ class FormController extends AbstractController
             $logger->warning('Redirect (mail empty)', $arguments);
 
             return new ForwardResponse('form');
+        }
+        return null;
+    }
+
+    /**
+     * @return RedirectResponse|null
+     * @throws PropagateResponseException
+     */
+    private function forwardIfMailUidDoesNotExist(): ?RedirectResponse
+    {
+        $arguments = $this->request->getArguments();
+        $mail = $this->mailRepository->findByUid($arguments['mail']);
+        if ($mail === null) {
+            $returnUrl = $this->request->getUri()->getPath();
+            return new RedirectResponse($returnUrl, 200);
         }
         return null;
     }
